@@ -1,48 +1,48 @@
-# Task Offloading in Fog Environment
+PROJET OPTIMISATION METAHEURISTIQUE : TASK OFFLOADING FOG
+1. PRESENTATION DU PROJET
+Ce projet implémente l'algorithme MOHS (Multi-Objective Harmony Search) pour résoudre le problème du placement de tâches dans une infrastructure Fog Computing. L'objectif est de trouver le meilleur compromis entre trois critères souvent contradictoires : la latence, l'énergie et le coût.
 
+2. FONCTIONNEMENT DE L'ALGORITHME (MOHS)
+L'algorithme s'inspire de l'improvisation musicale pour trouver une harmonie (une solution) optimale :
 
-##  Requirements & Installation
+HM (Harmony Memory) : Stocke les solutions actuelles.
 
-Main Dependent Modules:
+Archive Pareto : Stocke les 50 meilleures solutions non-dominées.
 
-- **python >= 3.8**: Previous versions might be OK but without testing.
-- **networkx**: NetworkX is a Python package for the creation, manipulation, and study of the structure, dynamics, and functions of complex networks.
-- **simpy**: SimPy is a process-based discrete-event simulation framework based on standard Python.
-- **numpy**: NumPy is a Python library used for working with arrays.
-- **pandas**: Pandas is a fast, powerful, flexible and easy to use open source data analysis and manipulation tool.
-  
+Reinjection (Innovation) : 25% des nouvelles décisions sont prises directement depuis l'archive Pareto pour guider la recherche vers le front optimal.
 
-Users are recommended to use the Anaconda to configure the RayCloudSim:
+Gestion des Contraintes : Utilisation de pénalités lourdes en cas de dépassement de la capacité des buffers des nœuds.
 
-```text
-conda create --name raycloudsim python=3.12
-conda activate raycloudsim
-pip install -r requirements.txt
-```
+3. STRUCTURE DES FICHIERS
+main.py : Lanceur principal de la simulation.
 
+policies/heuristics/MOHS.py : Contient toute la logique de l'algorithme et de l'archive.
 
-## Usage
+visualisation.py : Génère un graphique 3D de la frontière de Pareto.
 
-To run the simulation, execute the `main.py` script. You can modify the configuration file path to use different scenarios and policies. For example, to run the simulation with the NOTE policy in the Pakistan scenario, use the following command:
+quality_metrics.py : Calcule les indicateurs de Spacing et d'Hypervolume.
 
-```bash
-python main.py --config configs/Pakistan/DQL/NOTE.yaml
-```
+pareto_archive.csv : Fichier de données généré contenant les solutions optimales.
 
+4. COMMENT LANCER LE PROJET
+A. Installation des bibliothèques nécessaires : pip install pandas numpy matplotlib
 
-## Policies
-The framework supports various task offloading policies, including:
-- **Random**: Tasks are offloaded to a randomly selected node.
-- **Greedy**: Tasks are offloaded to the node with the most available resources.
-- **Round Robin**: Tasks are offloaded in a round-robin fashion among available nodes
-- **MLP DQL**: A Deep Q-Learning based policy using a Multi-Layer Perceptron.
-- **MLP NPGA/NSGA-II**: A policy using Multi-Layer Perceptron with Non-dominated Sorting Genetic Algorithm.
-- **NOTE**: Node Offloading Transformer-based Encoder policy using the DQL algorithm.
-- **T-NOTE**: Task-aware Node Offloading Transformer-based Encoder policy using the DQL algorithm.
+B. Lancement de la simulation (génère l'archive) : python main.py --config configs/Pakistan/Heuristics/MOHS.yaml
 
+C. Visualisation des résultats (Front de Pareto 3D) : python visualisation.py
 
-## Informations
+D. Calcul des métriques de qualité (HV et Spacing) : python quality_metrics.py
 
-This framework is based on the RayCloudSim project available at [RayCloudSim GitHub Repository](https://github.com/ZhangRui111/RayCloudSim). For more details on the simulation environment and additional functionalities please refer to the original repository.
+5. RESULTATS OBTENUS (DATASET PAKISTAN)
+TaskThrowRate : ~15.21% (Amélioration majeure par rapport aux 95% initiaux).
 
-This repository is developed and maintained by Arthur GARON as part of his research project. For any questions or contributions, please feel free to open an issue or submit a pull request.
+AvgPower (MOHS) : ~238 711 Watts (Consomme 30% de moins que l'algorithme Greedy).
+
+Archive : 50 solutions de compromis trouvées.
+
+Hypervolume (HV) : 4.07e+08 (Preuve de la convergence de l'algorithme).
+
+6. ANALYSE COMPARATIVE
+MOHS vs Greedy : MOHS est plus lent en latence mais beaucoup plus économe en énergie.
+
+MOHS vs Random/RoundRobin : MOHS offre une meilleure stabilité et un meilleur respect des capacités matérielles grâce à sa gestion des contraintes.
