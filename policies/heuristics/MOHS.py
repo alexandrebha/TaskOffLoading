@@ -4,11 +4,11 @@ import csv
 
 class MOHSPolicy:
     def __init__(self, hm_size=15, archive_size=50):
-        self.hm_size = hm_size
-        self.archive_limit = archive_size
-        self.archive = []  # Archive Pareto pour stocker les solutions non-dominées [cite: 64]
-        self.hm = []
-        self.is_trained = False
+        self.hm_size = hm_size #taille de notre Harmony Memory
+        self.archive_limit = archive_size # taille de nos solutions non dominées. 50
+        self.archive = []  # archive Pareto pour stocker les solutions non-dominées [cite: 64]
+        self.hm = [] # notre harmonie mémory on liste les 15 dernieres solutions. 
+        self.is_trained = False 
         self.best_mapping = {}
 
     def act(self, env, task, train=False):
@@ -16,7 +16,7 @@ class MOHSPolicy:
         Méthode appelée par main.py. L'optimisation est lancée au premier appel.
         """
         if not self.is_trained:
-            # Récupération de l'infrastructure via le scénario
+            # récupération de l'infrastructure via le scénario
             infra = getattr(env.scenario, 'infrastructure', None)
             nodes = list(infra.get_nodes().values()) if infra else []
             all_tasks = getattr(env, 'tasks', [task])
@@ -28,7 +28,7 @@ class MOHSPolicy:
             else:
                 print("[MOHS] Erreur : Infrastructure inaccessible.")
 
-        # Attribution du nœud (Variable de décision xij) [cite: 6, 21, 61]
+        # attribution du nœud (Variable de décision xij)
         task_id = getattr(task, 'task_id', getattr(task, 'id', 0))
         n_nodes = len(env.scenario.infrastructure.get_nodes()) if hasattr(env.scenario, 'infrastructure') else 1
         return self.best_mapping.get(task_id, task_id % n_nodes), None
@@ -40,27 +40,28 @@ class MOHSPolicy:
         n_tasks = len(tasks)
         n_nodes = len(nodes)
 
-        # 1. Initialisation de la HM
-        for _ in range(self.hm_size):
+        # initialisation de la HM
+        for _ in range(self.hm_size): #on crée 15 solutions aléatoires pour remplir la HM
             sol = [random.randint(0, n_nodes - 1) for _ in range(n_tasks)]
             objs = self._evaluate_objectives(sol, tasks, nodes)
             harmony = {'mapping': sol, 'objs': objs}
             self.hm.append(harmony)
             self._update_pareto_archive(harmony)
 
-        # 2. Improvisation avec RÉINJECTION (Consigne Prof)
-        for _ in range(250): 
+        # improvisation avec RÉINJECTION
+        for _ in range(500): 
             new_sol = [0] * n_tasks
             for i in range(n_tasks):
                 rand = random.random()
-                # Réinjection de l'archive pour utiliser la dominance dans la recherche
-                if rand < 0.25 and len(self.archive) > 0:
+                # réinjection de l'archive pour utiliser la dominance dans la recherche
+                if rand < 0.25 and len(self.archive) > 0: # 25% d'aller dans l'archive
                     new_sol[i] = random.choice(self.archive)['mapping'][i]
-                elif rand < 0.85: # HMCR
+                elif rand < 0.85: # HMCR #60% d'aller dans la HM
                     new_sol[i] = random.choice(self.hm)['mapping'][i]
-                    if random.random() < 0.3: # PAR
-                        new_sol[i] = random.randint(0, n_nodes - 1)
-                else:
+                    if random.random() < 0.3: #PAR #30% de pitch adjustment
+                        new_sol[i] = new_sol[i] + random.choice([-1, +1])  # légère modification
+                        new_sol[i] = new_sol[i] % n_nodes  # fait pour rester dans les bornes [0, n_nodes-1]
+                else: # 15% de aléatoire
                     new_sol[i] = random.randint(0, n_nodes - 1)
 
             objs = self._evaluate_objectives(new_sol, tasks, nodes)
@@ -68,16 +69,16 @@ class MOHSPolicy:
             self.hm[random.randint(0, self.hm_size - 1)] = new_harmony
             self._update_pareto_archive(new_harmony)
 
-        # 3. Sauvegarde du mapping et EXPORTATION de l'Archive
+        # sauvegarde du mapping et EXPORTATION de l'Archive
         if self.archive:
-            # On prend la première solution Pareto comme référence pour l'exécution
+            # on prend la première solution Pareto comme référence pour l'exécution
             best_sol = self.archive[0]
             mapping_list = best_sol['mapping']
             for idx, t in enumerate(tasks):
                 t_id = getattr(t, 'task_id', getattr(t, 'id', idx))
                 self.best_mapping[t_id] = mapping_list[idx]
 
-            # ÉCRITURE du fichier CSV (C'est ici qu'on crée le fichier)
+            # ecriture du fichier CSV
             try:
                 with open('pareto_archive.csv', 'w', newline='') as f:
                     writer = csv.writer(f)
@@ -105,7 +106,7 @@ class MOHSPolicy:
             f3 += (t_size * n.idle_energy_coef * 0.75)                    # f3: Coût
             node_usage[n_idx] += t_size
 
-        # Contraintes de capacité (Capj) [cite: 11, 21, 59]
+        #contraine de capacité
         penalty = 0
         for i, load in enumerate(node_usage):
             max_cap = nodes[i].task_buffer.max_size
@@ -117,12 +118,18 @@ class MOHSPolicy:
         """
         Mise à jour de l'archive selon la dominance de Pareto 
         """
+        #si notre nouvelle solution est dominée par une solution de l'archive, on ne l'ajoute pas
         if any(self._is_dominated(sol['objs'], a['objs']) for a in self.archive):
             return
+          #vérifier si une solution avec les mêmes objectifs existe déjà
+        for a in self.archive:
+            if all(abs(a['objs'][i] - sol['objs'][i]) < 1e-10 for i in range(len(sol['objs']))):
+                return  #solution déjà présente (mêmes objectifs), on ne l'ajoute pas
+        #si elle n'est pas dominée on l'ajoute en supprimant la solution dominée
         self.archive = [a for a in self.archive if not self._is_dominated(a['objs'], sol['objs'])]
         self.archive.append(sol)
         if len(self.archive) > self.archive_limit:
-            self.archive.pop(0)
+            self.archive.pop(random.randint(0, 49))
 
     def _is_dominated(self, obj_a, obj_b):
         """
