@@ -132,7 +132,4 @@ class MOHSPolicy:
             self.archive.pop(random.randint(0, 49))
 
     def _is_dominated(self, obj_a, obj_b):
-        """
-        Vérifie si la solution A est dominée par B [cite: 64]
-        """
         return all(b <= a for a, b in zip(obj_a, obj_b)) and any(b < a for a, b in zip(obj_a, obj_b))
